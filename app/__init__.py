@@ -1,6 +1,4 @@
 from flask import Flask
-import redis
-from rq import Queue
 from flask_pymongo import PyMongo
 from flask_bootstrap import Bootstrap
 from flask_rq2 import RQ
