@@ -42,7 +42,7 @@ function updateSubscriptionOnServer(subscription, industry_name) {
     var msg = {'sub_token': subscription, 'industry': industry_name}
 	$.ajax({
 		type: "POST",
-		url: "/api/v1/subscribe",
+		url: "/api/v1/subscribers/",
 		contentType: 'application/json; charset=utf-8',
 		dataType:'json',
 		data: JSON.stringify(msg),
@@ -88,7 +88,7 @@ function unsubscribeUser(industry_name) {
 			console.log('Error unsubscribing', error);
 		})
 		.then(function() {
-			updateSubscriptionOnServer(null, industry_name);
+			//updateSubscriptionOnServer(null, industry_name);
 
 			console.log('User is unsubscribed.');
 			isSubscribed = false;

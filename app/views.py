@@ -1,4 +1,4 @@
-from flask import render_template, jsonify, Response, request
+from flask import render_template, jsonify, Response, request, url_for
 from app import app, mongo
 from app.tasks import send_web_push, add_notification_to_db
 import requests
@@ -18,7 +18,7 @@ def get_vapid_public_key():
     return jsonify({'public_key': pub_key})
 
 
-@app.route('/api/v1/subscribe', methods=["POST"])
+@app.route('/api/v1/subscribers/', methods=["POST"])
 def post_subscription_token():
     if not request.json or not request.json.get('sub_token') or not request.json.get('industry'):
         return Response(status=400)
@@ -31,10 +31,19 @@ def post_subscription_token():
     else:
         collection.insert_one({'industry': industry, 'subtoken': [sub_token], 'notifications': []})
 
+    # TODO: Start monitoring the added industry in the database
+
     return Response(status=201)
 
 
-@app.route('/api/v1/push', methods=["POST"])
+@app.route('/api/v1/subscribers/list')
+def list_subscribers():
+    collection = mongo.db.industries
+    res = list(collection.find({}, {'_id': 0}))
+    return jsonify(res)
+
+
+@app.route('/api/v1/subscribers/push', methods=["POST"])
 def push_notifications():
     if not request.json or not request.json.get('industry') or not request.json.get('message') or not request.json.get('link'):
         return Response(status=400)
@@ -64,16 +73,26 @@ def create_topic():
         return Response(status=400)
 
     topic_name = request.json.get('topic')
+    description = request.json.get('description')
+    if description is None:
+        description = ""
 
     collection = mongo.db.topics
     if collection.find_one({'topic': topic_name}):
         return Response(status=400)
     
-    collection.insert_one({'topic': topic_name, 'industries': []})
+    collection.insert_one({'topic': topic_name, 'description': description, 'industries': []})
     return Response(status=201)
 
 
-@app.route('/api/v1/topics/subscribe', methods=["PUT"])
+@app.route('/api/v1/topics/list')
+def list_topics():
+    collection = mongo.db.topics
+    res = list(collection.find({}, {'_id': 0}))
+    return jsonify(res)
+
+
+@app.route('/api/v1/topics/subscriber', methods=["PUT"])
 def subscribe_industry_to_topic():
     if not request.json or not request.json.get('topic') or not request.json.get('industry'):
         return Response(status=400)
@@ -84,10 +103,13 @@ def subscribe_industry_to_topic():
     topics_collection = mongo.db.topics
     indistry_collection = mongo.db.industries
 
-    if not indistry_collection.find_one({'industry': industry}) or not topics_collection.find_one({'topic': topic_name}):
+    if not indistry_collection.find_one({'industry': industry}):
         return Response(status=400)
 
-    topics_collection.update_one({'topic': topic_name}, {'$addToSet': {'industries': industry}})
+    res = topics_collection.update_one({'topic': topic_name}, {'$addToSet': {'industries': industry}})
+    if res.raw_result['n'] == 0:
+        return Response(status=400)
+
     return Response(status=200)
 
 
@@ -109,6 +131,35 @@ def publish_message_to_a_topic():
     industries = topic_document['industries']
     for industry in industries:
         post_data = {'industry': industry, 'message': message, 'link': link}
-        response = requests.post('http://127.0.0.1:5000/api/v1/push', json=post_data)
+        response = requests.post(url_for('push_notifications'), json=post_data)
     
     return Response(status=200)
+
+
+@app.route('/api/v1/topics/unsubscribe', methods=["POST"])
+def unsubscribe_industry_from_topic():
+    if not request.json or not request.json.get('industry') or not request.json.get('topic'):
+        return Response(status=400)
+    
+    industry = request.json.get('industry')
+    topic_name = request.json.get('topic')
+
+    collection = mongo.db.topics
+    
+    res = collection.update_one({'topic': topic_name}, {'$pull': {'industries': industry}})
+    if res.raw_result['n'] == 0 or res.raw_result['nModified'] == 0:
+        return Response(status=400)
+
+    return Response(status=200)
+
+
+@app.route('/api/v1/topics/<topic>', methods=["DELETE"])
+def remove_topic(topic):
+    collection = mongo.db.topics
+
+    res = collection.remove({'topic': topic})
+    if res['n'] == 0:
+        return Response(status=400)
+    
+    return Response(status=200)
+    
