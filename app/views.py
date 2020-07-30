@@ -1,6 +1,6 @@
 from flask import render_template, jsonify, Response, request, url_for
 from app import app, mongo
-from app.tasks import send_web_push, add_notification_to_db
+from app.tasks import send_web_push, add_notification_to_db, publish
 import requests
 
 
@@ -43,7 +43,7 @@ def list_subscribers():
     return jsonify(res)
 
 
-@app.route('/api/v1/subscribers/push', methods=["POST"])
+@app.route('/api/v1/notifications/push', methods=["POST"])
 def push_notifications():
     if not request.json or not request.json.get('industry') or not request.json.get('message') or not request.json.get('link'):
         return Response(status=400)
@@ -62,9 +62,25 @@ def push_notifications():
     for token in tokens:
         send_web_push.queue(token, message, link)
     
+    # TODO: Send notifications to mobile phones
+    
     add_notification_to_db.queue(industry, message, link)
     
     return Response(status=200)
+
+
+@app.route('/api/v1/notifications/list')
+def list_notifications_of_industry():
+    if not request.args.get('industry'):
+        return Response(status=400)
+    
+    industry = request.args.get('industry')
+    collection = mongo.db.industries
+    res = collection.find_one({'industry': industry}, {'notifications': 1, '_id': 0})
+    if res is None:
+        return Response(status=400)
+
+    return jsonify(res['notifications'])
 
 
 @app.route('/api/v1/topics/', methods=["POST"])
@@ -129,9 +145,7 @@ def publish_message_to_a_topic():
         return Response(status=400)
     
     industries = topic_document['industries']
-    for industry in industries:
-        post_data = {'industry': industry, 'message': message, 'link': link}
-        response = requests.post(url_for('push_notifications'), json=post_data)
+    publish.queue(industries, message, link)
     
     return Response(status=200)
 
