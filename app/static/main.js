@@ -142,7 +142,7 @@ if ('serviceWorker' in navigator && 'PushManager' in window) {
 $(document).ready(function(){
 	$.ajax({
 		type:"GET",
-		url:'/api/v1/vapid_public_key',
+		url:'/api/v1/vapid/public/key',
 		success:function(response){
 			console.log("response",response);
 			localStorage.setItem('applicationServerPublicKey',response.public_key);

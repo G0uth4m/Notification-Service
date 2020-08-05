@@ -2,18 +2,18 @@ from flask import render_template, jsonify, Response, request, url_for
 from app import app, mongo
 from app.tasks import send_web_push, add_notification_to_db, publish
 import requests
-
+from datetime import datetime
 
 @app.route('/')
 def index():
     return render_template('index.html')
 
 
-@app.route('/api/v1/vapid_public_key')
+@app.route('/api/v1/vapid/public/key')
 def get_vapid_public_key():
     pub_key = app.config['VAPID_PUBLIC_KEY']
     if pub_key is None:
-        return Response(status=500)
+        return Response(status=404)
 
     return jsonify({'public_key': pub_key})
 
@@ -31,26 +31,28 @@ def post_subscription_token():
     else:
         collection.insert_one({'industry': industry, 'subtoken': [sub_token], 'notifications': []})
 
-    # TODO: Start monitoring the added industry in the database
+        # TODO: Start monitoring the added industry in the database
 
     return Response(status=201)
 
 
 @app.route('/api/v1/subscribers/list')
 def list_subscribers():
+    timestamp = request.args.get("timestamp")
+
     collection = mongo.db.industries
     res = list(collection.find({}, {'_id': 0}))
+    # TODO: Retrieve notifications based on timestamp
     return jsonify(res)
 
 
 @app.route('/api/v1/notifications/push', methods=["POST"])
 def push_notifications():
-    if not request.json or not request.json.get('industry') or not request.json.get('message') or not request.json.get('link'):
+    if not request.json or not request.json.get('industry') or not request.json.get('notification'):
         return Response(status=400)
     
     industry = request.json.get('industry')
-    message = request.json.get('message')
-    link = request.json.get('link')
+    notification = request.json.get('notification')
 
     collection = mongo.db.industries
     industry_document = collection.find_one({'industry': industry})
@@ -60,11 +62,11 @@ def push_notifications():
     tokens = industry_document['subtoken']
 
     for token in tokens:
-        send_web_push.queue(token, message, link)
+        send_web_push.queue(token, notification)
     
     # TODO: Send notifications to mobile phones
-    
-    add_notification_to_db.queue(industry, message, link)
+    notification['timestamp'] = datetime.utcnow()
+    add_notification_to_db.queue(industry, notification)
     
     return Response(status=200)
 
@@ -131,12 +133,11 @@ def subscribe_industry_to_topic():
 
 @app.route('/api/v1/topics/publish', methods=["POST"])
 def publish_message_to_a_topic():
-    if not request.json or not request.json.get('message') or not request.json.get('topic') or not request.json.get('link'):
+    if not request.json or not request.json.get('notification') or not request.json.get('topic'):
         return Response(status=400)
 
     topic_name = request.json.get('topic')
-    message = request.json.get('message')
-    link = request.json.get('link')
+    notification = request.json.get('notification')
 
     collection = mongo.db.topics
 
@@ -145,7 +146,7 @@ def publish_message_to_a_topic():
         return Response(status=400)
     
     industries = topic_document['industries']
-    publish.queue(industries, message, link)
+    publish.queue(industries, notification)
     
     return Response(status=200)
 
