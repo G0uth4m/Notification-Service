@@ -38,11 +38,8 @@ def post_subscription_token():
 
 @app.route('/api/v1/subscribers/list')
 def list_subscribers():
-    timestamp = request.args.get("timestamp")
-
     collection = mongo.db.industries
     res = list(collection.find({}, {'_id': 0}))
-    # TODO: Retrieve notifications based on timestamp
     return jsonify(res)
 
 
@@ -65,7 +62,7 @@ def push_notifications():
         send_web_push.queue(token, notification)
     
     # TODO: Send notifications to mobile phones
-    notification['timestamp'] = datetime.utcnow()
+    notification['timestamp'] = datetime.now()
     add_notification_to_db.queue(industry, notification)
     
     return Response(status=200)
@@ -73,15 +70,22 @@ def push_notifications():
 
 @app.route('/api/v1/notifications/list')
 def list_notifications_of_industry():
-    if not request.args.get('industry'):
+    if not request.args.get('industry') or not request.args.get('start') or not request.args.get('end'):
         return Response(status=400)
     
     industry = request.args.get('industry')
+    start = int(request.args.get('start'))
+    end = int(request.args.get('end'))
+    
     collection = mongo.db.industries
-    res = collection.find_one({'industry': industry}, {'notifications': 1, '_id': 0})
+    res = collection.find_one(
+        {'industry': industry},
+        {'notifications': {'$slice': [-end, end - start]}, '_id': 0}
+    )
     if res is None:
-        return Response(status=400)
+        return Response(status=204)
 
+    res["notifications"].reverse()
     return jsonify(res['notifications'])
 
 
