@@ -7,3 +7,4 @@ class Config(object):
     VAPID_PUBLIC_KEY = os.environ.get('VAPID_PUBLIC_KEY')
     VAPID_PRIVATE_KEY = os.environ.get('VAPID_PRIVATE_KEY') or 'SOz4qDUZaEUp1PapnoK-PMSGK5zr_rfzjuFH8JLijLk'
     VAPID_CLAIMS = {"sub": "mailto:test@test.in"}
+    RQ_REDIS_URL = 'redis://redis-server:6379/0'

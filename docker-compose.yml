@@ -1,0 +1,20 @@
+version: 3
+
+services:
+    app:
+        build: .
+        image: app:latest
+        command: flask run
+        container_name: notification_system
+        ports: 5000:5000
+        volumes: 
+            - .:/notification_service
+        networks:
+            - backend
+    
+    redis-server:
+        image: redis:latest
+        container_name: redis-server
+        networks:
+            - backend
+        
