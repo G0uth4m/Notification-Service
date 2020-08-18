@@ -13,6 +13,12 @@ services:
         networks:
             - backend
     
+    mymongo:
+        image: mongo:latest
+        container_name: mymongo
+        networks:
+            - backend
+    
     redis-server:
         image: redis:latest
         container_name: redis-server
