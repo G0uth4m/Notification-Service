@@ -6,6 +6,8 @@ services:
         image: app:latest
         command: flask run
         container_name: notification_system
+        env_file:
+            - .flaskenv
         ports: 
             - "5000:5000"
         volumes: 
