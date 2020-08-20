@@ -1,41 +1,24 @@
 # Notification Service
 
 ## Setup
-### Activate virtual environment
+### Install docker
 ```
-$ python3 -m venv venv/
-$ source venv/bin/activate
-```
-
-### Install requirements
-```
-$ pip install -r requirements.txt
+$ sudo apt install docker docker.io docker-compose
 ```
 
-### Install mongodb and redis server
+### Change directory
 ```
-$ sudo apt install mongodb
-$ sudo apt install redis-server
-```
-
-### Start mongodb and redis-server
-```
-$ sudo service mongodb start
-$ sudo service redis-server start
+$ cd Notification-Service
 ```
 
-### Setup redis queue listeners
+### Build for the first time
 ```
-$ rq worker webpush-jobs
-```
-Open another terminal
-```
-$ rq worker db-jobs
+$ sudo docker-compose build .
 ```
 
-### Run flask
+### After first build, start all containers
 ```
-$ flask run
+$ sudo docker-compose up
 ```
 
 ## Authors
