@@ -50,6 +50,16 @@ services:
         networks: 
             - backend
 
+    redis-worker-publish:
+        image: app:latest
+        command: rq worker --url redis://redis-server:6379 publish-jobs
+        env_file:
+            - .flaskenv
+        depends_on: 
+            - redis-server
+        networks: 
+            - backend
+
 networks:
     backend:
         
