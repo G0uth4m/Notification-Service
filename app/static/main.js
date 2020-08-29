@@ -39,10 +39,10 @@ function updateBtn() {
 }
 
 function updateSubscriptionOnServer(subscription, industry_name) {
-    var msg = {'sub_token': subscription, 'industry': industry_name}
+    var msg = {'token': subscription, 'topic': industry_name}
 	$.ajax({
 		type: "POST",
-		url: "/api/v1/subscribers/",
+		url: "/api/v1/topics/subscribe",
 		contentType: 'application/json; charset=utf-8',
 		dataType:'json',
 		data: JSON.stringify(msg),

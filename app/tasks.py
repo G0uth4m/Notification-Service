@@ -13,9 +13,9 @@ def send_web_push(token, notification):
 
 
 @rq.job('db-jobs')
-def add_notification_to_db(industry, notification):
-    collection = mongo.db.industries
-    collection.update_one({'industry': industry}, {'$push': {'notifications': notification}})
+def add_notification_to_db(topic, notification):
+    collection = mongo.db.topics
+    collection.update_one({'topic': topic}, {'$push': {'notifications': notification}})
 
 
 @rq.job('mobilepush-jobs')
@@ -25,13 +25,11 @@ def send_mobile_push(endpoint, notification):
 
 
 @rq.job('publish-jobs')
-def publish(industries, notification):
-    for industry in industries:
-        tokens = mongo.db.industries.find_one({'industry': industry}, {'_id': 0, 'subtoken': 1})['subtoken']
-        for token in tokens:
-            send_web_push.queue(token, notification)
+def publish(tokens, notification, topic_name):
+    for token in tokens:
+        send_web_push.queue(token, notification)
+    
+    # TODO: Send push notifications to mobile phones
         
-        # TODO: Send push notifications to mobile phones
-            
-        add_notification_to_db.queue(industry, notification)
+    add_notification_to_db.queue(topic_name, notification)
     

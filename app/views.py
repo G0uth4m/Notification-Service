@@ -1,8 +1,9 @@
 from flask import render_template, jsonify, Response, request, url_for
 from app import app, mongo
-from app.tasks import send_web_push, add_notification_to_db, publish
+from app.tasks import send_web_push, publish
 import requests
 from datetime import datetime
+
 
 @app.route('/')
 def index():
@@ -16,77 +17,6 @@ def get_vapid_public_key():
         return Response(status=404)
 
     return jsonify({'public_key': pub_key})
-
-
-@app.route('/api/v1/subscribers/', methods=["POST"])
-def post_subscription_token():
-    if not request.json or not request.json.get('sub_token') or not request.json.get('industry'):
-        return Response(status=400)
-
-    collection = mongo.db.industries
-    industry = request.json.get('industry')
-    sub_token = request.json.get('sub_token')
-    if collection.find_one({'industry': industry}):
-        collection.update_one({'industry': industry}, {'$addToSet': {'sub_token': sub_token}})
-    else:
-        collection.insert_one({'industry': industry, 'subtoken': [sub_token], 'notifications': []})
-
-        # TODO: Start monitoring the added industry in the database
-
-    return Response(status=201)
-
-
-@app.route('/api/v1/subscribers/list')
-def list_subscribers():
-    collection = mongo.db.industries
-    res = list(collection.find({}, {'_id': 0}))
-    return jsonify(res)
-
-
-@app.route('/api/v1/notifications/push', methods=["POST"])
-def push_notifications():
-    if not request.json or not request.json.get('industry') or not request.json.get('notification'):
-        return Response(status=400)
-    
-    industry = request.json.get('industry')
-    notification = request.json.get('notification')
-
-    collection = mongo.db.industries
-    industry_document = collection.find_one({'industry': industry})
-    if not industry_document:
-        return Response(status=400)
-
-    tokens = industry_document['subtoken']
-
-    for token in tokens:
-        send_web_push.queue(token, notification)
-    
-    # TODO: Send notifications to mobile phones
-    notification['timestamp'] = datetime.now()
-    add_notification_to_db.queue(industry, notification)
-    
-    return Response(status=200)
-
-
-@app.route('/api/v1/notifications/list')
-def list_notifications_of_industry():
-    if not request.args.get('industry') or not request.args.get('start') or not request.args.get('end'):
-        return Response(status=400)
-    
-    industry = request.args.get('industry')
-    start = int(request.args.get('start'))
-    end = int(request.args.get('end'))
-    
-    collection = mongo.db.industries
-    res = collection.find_one(
-        {'industry': industry},
-        {'notifications': {'$slice': [-end, end - start]}, '_id': 0}
-    )
-    if res is None:
-        return Response(status=204)
-
-    res["notifications"].reverse()
-    return jsonify(res['notifications'])
 
 
 @app.route('/api/v1/topics/', methods=["POST"])
@@ -103,7 +33,7 @@ def create_topic():
     if collection.find_one({'topic': topic_name}):
         return Response(status=400)
     
-    collection.insert_one({'topic': topic_name, 'description': description, 'industries': []})
+    collection.insert_one({'topic': topic_name, 'description': description, 'subscribers': [], 'notifications': []})
     return Response(status=201)
 
 
@@ -114,25 +44,83 @@ def list_topics():
     return jsonify(res)
 
 
-@app.route('/api/v1/topics/subscriber', methods=["PUT"])
-def subscribe_industry_to_topic():
-    if not request.json or not request.json.get('topic') or not request.json.get('industry'):
+@app.route('/api/v1/topics/<topic>', methods=["DELETE"])
+def remove_topic(topic):
+    collection = mongo.db.topics
+
+    res = collection.remove({'topic': topic})
+    if res['n'] == 0:
+        return Response(status=400)
+    
+    return Response(status=200)
+
+
+@app.route('/api/v1/topics/subscribe', methods=["POST"])
+def subscribe_to_topic():
+    if not request.json or not request.json.get('topic') or not request.json.get('token'):
         return Response(status=400)
     
     topic_name = request.json.get('topic')
-    industry = request.json.get('industry')
+    token = request.json.get('token')
 
     topics_collection = mongo.db.topics
-    indistry_collection = mongo.db.industries
 
-    if not indistry_collection.find_one({'industry': industry}):
-        return Response(status=400)
-
-    res = topics_collection.update_one({'topic': topic_name}, {'$addToSet': {'industries': industry}})
+    res = topics_collection.update_one({'topic': topic_name}, {'$addToSet': {'subscribers': token}})
     if res.raw_result['n'] == 0:
         return Response(status=400)
 
     return Response(status=200)
+
+
+@app.route('/api/v1/topics/unsubscribe', methods=["POST"])
+def unsubscribe_from_topic():
+    if not request.json or not request.json.get('token') or not request.json.get('topic'):
+        return Response(status=400)
+    
+    subscriber = request.json.get('token')
+    topic_name = request.json.get('topic')
+
+    collection = mongo.db.topics
+    
+    res = collection.update_one({'topic': topic_name}, {'$pull': {'subscribers': token}})
+    if res.raw_result['n'] == 0 or res.raw_result['nModified'] == 0:
+        return Response(status=400)
+
+    return Response(status=200)
+
+
+@app.route('/api/v1/notifications/push', methods=["POST"])
+def push_notifications():
+    if not request.json or not request.json.get('token') or not request.json.get('notification'):
+        return Response(status=400)
+    
+    token = request.json.get('token')
+    notification = request.json.get('notification')
+
+    send_web_push.queue(token, notification)
+    
+    return Response(status=200)
+
+
+@app.route('/api/v1/notifications/list')
+def list_notifications_of_industry():
+    if not request.args.get('topic') or not request.args.get('start') or not request.args.get('end'):
+        return Response(status=400)
+    
+    topic = request.args.get('topic')
+    start = int(request.args.get('start'))
+    end = int(request.args.get('end'))
+    
+    collection = mongo.db.topics
+    res = collection.find_one(
+        {'topic': topic},
+        {'notifications': {'$slice': [-end, end - start]}, '_id': 0}
+    )
+    if res is None:
+        return Response(status=204)
+
+    res["notifications"].reverse()
+    return jsonify(res['notifications'])
 
 
 @app.route('/api/v1/topics/publish', methods=["POST"])
@@ -149,36 +137,7 @@ def publish_message_to_a_topic():
     if not topic_document:
         return Response(status=400)
     
-    industries = topic_document['industries']
-    publish.queue(industries, notification)
+    subscribers = topic_document['subscribers']
+    publish.queue(subscribers, notification, topic_name)
     
     return Response(status=200)
-
-
-@app.route('/api/v1/topics/unsubscribe', methods=["POST"])
-def unsubscribe_industry_from_topic():
-    if not request.json or not request.json.get('industry') or not request.json.get('topic'):
-        return Response(status=400)
-    
-    industry = request.json.get('industry')
-    topic_name = request.json.get('topic')
-
-    collection = mongo.db.topics
-    
-    res = collection.update_one({'topic': topic_name}, {'$pull': {'industries': industry}})
-    if res.raw_result['n'] == 0 or res.raw_result['nModified'] == 0:
-        return Response(status=400)
-
-    return Response(status=200)
-
-
-@app.route('/api/v1/topics/<topic>', methods=["DELETE"])
-def remove_topic(topic):
-    collection = mongo.db.topics
-
-    res = collection.remove({'topic': topic})
-    if res['n'] == 0:
-        return Response(status=400)
-    
-    return Response(status=200)
-    
