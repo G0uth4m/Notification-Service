@@ -77,7 +77,7 @@ def unsubscribe_from_topic():
     if not request.json or not request.json.get('token') or not request.json.get('topic'):
         return Response(status=400)
     
-    subscriber = request.json.get('token')
+    token = request.json.get('token')
     topic_name = request.json.get('topic')
 
     collection = mongo.db.topics
@@ -103,7 +103,7 @@ def push_notifications():
 
 
 @app.route('/api/v1/notifications/list')
-def list_notifications_of_industry():
+def list_notifications_of_topic():
     if not request.args.get('topic') or not request.args.get('start') or not request.args.get('end'):
         return Response(status=400)
     
