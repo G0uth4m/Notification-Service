@@ -2,6 +2,9 @@ from pywebpush import webpush
 from app import app, mongo, rq
 import json
 
+"""
+Send push notification to the endpoint device
+"""
 @rq.job('webpush-jobs')
 def send_web_push(token, notification):
     return webpush(
@@ -11,7 +14,9 @@ def send_web_push(token, notification):
         vapid_claims=app.config["VAPID_CLAIMS"]
     )
 
-
+"""
+Store the notification in the database
+"""
 @rq.job('db-jobs')
 def add_notification_to_db(topic, notification):
     collection = mongo.db.topics
@@ -23,7 +28,9 @@ def send_mobile_push(endpoint, notification):
     # TODO: Send push notifications to mobile phones
     pass
 
-
+"""
+Given the topic, send notifications to all endpoint devices subscribed to that topic
+"""
 @rq.job('publish-jobs')
 def publish(tokens, notification, topic_name):
     for token in tokens:

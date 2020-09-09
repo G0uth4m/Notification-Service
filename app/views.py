@@ -9,7 +9,9 @@ from datetime import datetime
 def index():
     return render_template('index.html')
 
-
+"""
+Send public key of the server to the endpoint device
+"""
 @app.route('/api/v1/vapid/public/key')
 def get_vapid_public_key():
     pub_key = app.config['VAPID_PUBLIC_KEY']
@@ -19,6 +21,9 @@ def get_vapid_public_key():
     return jsonify({'public_key': pub_key})
 
 
+"""
+Create a topic. In our case subscribe industry for notifications
+"""
 @app.route('/api/v1/topics/', methods=["POST"])
 def create_topic():
     if not request.json or not request.json.get('topic'):
@@ -34,16 +39,24 @@ def create_topic():
         return Response(status=400)
     
     collection.insert_one({'topic': topic_name, 'description': description, 'subscribers': [], 'notifications': []})
+    # TODO : Monitor the added industry using database triggers
     return Response(status=201)
 
-
+"""
+List all the topics created. In our case list all industries
+"""
 @app.route('/api/v1/topics/list')
 def list_topics():
     collection = mongo.db.topics
-    res = list(collection.find({}, {'_id': 0}))
+    res = list(collection.find({}, {'_id': 0, 'topic': 1}))
+    res = [i['topic'] for i in res]
+    if res == []:
+        return Response(status=204)
     return jsonify(res)
 
-
+"""
+Delete a topic. In our case unsubscribe industry for notifications
+"""
 @app.route('/api/v1/topics/<topic>', methods=["DELETE"])
 def remove_topic(topic):
     collection = mongo.db.topics
@@ -54,7 +67,9 @@ def remove_topic(topic):
     
     return Response(status=200)
 
-
+"""
+Subscribe an endpoint device to a topic
+"""
 @app.route('/api/v1/topics/subscribe', methods=["POST"])
 def subscribe_to_topic():
     if not request.json or not request.json.get('topic') or not request.json.get('token'):
@@ -71,7 +86,9 @@ def subscribe_to_topic():
 
     return Response(status=200)
 
-
+""""
+Unsubscribe an endpoint device from a topic
+"""
 @app.route('/api/v1/topics/unsubscribe', methods=["POST"])
 def unsubscribe_from_topic():
     if not request.json or not request.json.get('token') or not request.json.get('topic'):
@@ -88,7 +105,10 @@ def unsubscribe_from_topic():
 
     return Response(status=200)
 
-
+"""
+Given the endpoint subscription token and the notification message. Send
+push notification to that endpoint
+"""
 @app.route('/api/v1/notifications/push', methods=["POST"])
 def push_notifications():
     if not request.json or not request.json.get('token') or not request.json.get('notification'):
@@ -101,7 +121,9 @@ def push_notifications():
     
     return Response(status=200)
 
-
+"""
+List notifications received by a topic (in our case industry)
+"""
 @app.route('/api/v1/notifications/list')
 def list_notifications_of_topic():
     if not request.args.get('topic') or not request.args.get('start') or not request.args.get('end'):
@@ -120,11 +142,16 @@ def list_notifications_of_topic():
         return Response(status=204)
 
     res["notifications"].reverse()
+    if res is None:
+        return Response(status=204)
     return jsonify(res['notifications'])
 
-
+"""
+Publish message to a topic - Given the name of industry and notification send push
+notifications to all the endpoint devices subscribed to that topic
+"""
 @app.route('/api/v1/topics/publish', methods=["POST"])
-def publish_message_to_a_topic():
+def publish_to_a_topic():
     if not request.json or not request.json.get('notification') or not request.json.get('topic'):
         return Response(status=400)
 

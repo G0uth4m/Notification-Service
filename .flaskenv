@@ -4,3 +4,4 @@ MONGO_DBNAME=notifications
 MONGO_URI=mongodb://mymongo:27017/notifications
 VAPID_PUBLIC_KEY=BIcdW51BZR5cUZNiQaRSch7HN87COzub8QebqeQ5j5oukcGQvG86FJI14Nq9L04UU4B7pbm1skhwAYr0Surk2Ng
 VAPID_PRIVATE_KEY=SOz4qDUZaEUp1PapnoK-PMSGK5zr_rfzjuFH8JLijLk
+RQ_REDIS_URL=redis://redis-server:6379/0
